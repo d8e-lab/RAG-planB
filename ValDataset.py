@@ -6,14 +6,14 @@ import torch
 """/mnt/82_store/sbc/rag_data/"""
 
 
-class TextDataset(Dataset):
+class ValDataset(Dataset):
     def __init__(self, tokenizer, args, file_path="/mnt/82_store/sbc/rag_data/",pool=None):
         super().__init__()
         self.args=args
         self.examples = []
         import os
         from pathlib import Path
-        file_list = [Path(file_path)/file for file in os.listdir(file_path) if "train" in file]
+        file_list = [Path(file_path)/file for file in os.listdir(file_path)]
         for file in file_list:
             with jsonlines.open(file,'r') as lines:
                 for line in lines:
