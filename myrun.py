@@ -14,6 +14,7 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 from info_nce import InfoNCE, info_nce
 from TextDataset import TextDataset
 from pathlib import Path
+from FlagEmbedding import BGEM3FlagModel
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +31,20 @@ def generate(model,query_input_ids,pos_inputs,neg_inputs,attn_mask=None,pad_toke
     query_outputs=model(query_input_ids=query_input_ids)
     pos_outputs=model(corpus_intput_ids=pos_inputs)
     neg_outputs=model(corpus_intput_ids=neg_inputs)
-    return query_outputs,pos_outputs,neg_outputs
+    outputs = [torch.from_numpy(i) for i in [query_outputs,pos_outputs,neg_outputs]]
+    return outputs[:]
 
 def train(args):
     logger = logging.getLogger(__name__)
     device = "cuda:0"
-    query_bert = BertModel.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/").to(device)
-    corpus_bert = BertModel.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/").to(device)
+    # query_encoder = BertModel.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/").to(device)
+    # corpus_encoder = BertModel.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/").to(device)
+    query_encoder=BGEM3FlagModel(args.model_name_or_path,use_fp16=False)
+    corpus_encoder=BGEM3FlagModel(args.model_name_or_path,use_fp16=False)
     bert_tokenizer = BertTokenizer.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/",max_length=512,truncation=True,padding=True,return_tensors="pt")
-    model = Model(query_encoder=query_bert,corpus_encoder=corpus_bert,pad_token_id = bert_tokenizer.pad_token_id)
-    dataset = TextDataset(bert_tokenizer,args,file_path=args.train_data_file)
+    model = Model(query_encoder=query_encoder,corpus_encoder=corpus_encoder,pad_token_id = bert_tokenizer.pad_token_id)
+    # print("para:",[i for i in model.parameters()])
+    dataset = TextDataset(file_path=args.train_data_file)
     train_sampler = RandomSampler(dataset)
     model.zero_grad()
 
@@ -51,9 +56,9 @@ def train(args):
     for idx in range(args.num_train_epochs): 
         for step,batch in enumerate(train_dataloader):
             #get inputs
-            query_inputs = batch["query_inputs"].to(args.device)[0]
-            pos_inputs = batch["pos_inputs"].to(args.device)[0]
-            neg_inputs = batch["neg_inputs"].to(args.device)[0]
+            query_inputs = batch["query_inputs"]
+            pos_inputs = batch["pos_inputs"]
+            neg_inputs = [i[0] for i in batch["neg_inputs"]]
 
             # query_outputs = model(query_input_ids=query_inputs[0])
             # pos_outputs = model(query_input_ids=pos_inputs[0])
@@ -71,6 +76,7 @@ def train(args):
                 tr_num=0
             
             #backward
+            loss.requires_grad_(True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
             optimizer.step()

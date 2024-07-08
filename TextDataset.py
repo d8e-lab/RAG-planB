@@ -7,7 +7,7 @@ import torch
 
 
 class TextDataset(Dataset):
-    def __init__(self, tokenizer, args, file_path="/mnt/82_store/sbc/rag_data/",pool=None):
+    def __init__(self, tokenizer=None, args=None, file_path="/mnt/82_store/sbc/rag_data/",pool=None):
         super().__init__()
         self.args=args
         self.examples = []
@@ -20,14 +20,19 @@ class TextDataset(Dataset):
                     query = line["query"]
                     pos = line["pos"][0]
                     neg = line["neg"]
-                    query_inputs = tokenizer(query,truncation=True,padding='max_length', return_tensors="pt").input_ids
-                    pos_inputs = tokenizer(pos,truncation=True,padding='max_length', return_tensors="pt").input_ids
-                    neg_inputs = tokenizer(neg,truncation=True,padding='max_length', return_tensors="pt").input_ids
+                    if tokenizer is not None:
+                        query_inputs = tokenizer(query,truncation=True,padding='max_length', return_tensors="pt").input_ids
+                        query_inputs = query
+                        pos_inputs = tokenizer(pos,truncation=True,padding='max_length', return_tensors="pt").input_ids
+                        neg_inputs = tokenizer(neg,truncation=True,padding='max_length', return_tensors="pt").input_ids
+                    else :
+                        query_inputs = query
+                        pos_inputs = pos
+                        neg_inputs = neg
                     self.examples.append({
                         "query_inputs":query_inputs,
                         "pos_inputs":pos_inputs,
                         "neg_inputs":neg_inputs,
-                        "atte_mask":query_inputs.ne(tokenizer.pad_token_id)
                         })
 
     def __len__(self):
@@ -36,7 +41,3 @@ class TextDataset(Dataset):
     def __getitem__(self, index) -> Any:
         return self.examples[index]
 
-def convert_nl_to_features(item):
-    text, tokenizer = item
-    text_tokens = tokenizer.encode(text,return_tensors="pt",padding=True)
-    return text_tokens
