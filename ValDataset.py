@@ -13,7 +13,7 @@ class ValDataset(Dataset):
         self.examples = []
         import os
         from pathlib import Path
-        file_list = [Path(file_path)/file for file in os.listdir(file_path)]
+        file_list = [Path(file_path)/file for file in os.listdir(file_path) if "val" in file]
         for file in file_list:
             with jsonlines.open(file,'r') as lines:
                 for line in lines:
