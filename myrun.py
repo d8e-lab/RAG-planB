@@ -74,9 +74,9 @@ def train(args):
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step() 
-    # save_path = Path(args.output_dir)/f'epoch-{idx}'
-    save_path = Path(args.output_dir)
-    model.save(save_path,bert_tokenizer)
+        save_path = Path(args.output_dir)/f'epoch-{idx}'
+        # save_path = Path(args.output_dir)
+        model.save(save_path,bert_tokenizer)
         # bert_tokenizer.save_pretrained(save_path)
         # bert_tokenizer.save_vocabulary(save_path)
 
