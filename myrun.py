@@ -6,6 +6,7 @@ import random
 import torch
 import json
 import numpy as np
+import torch 
 from model import Model
 from transformers import BertModel, BertTokenizer
 from torch.nn import CrossEntropyLoss
@@ -14,6 +15,7 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 from info_nce import InfoNCE, info_nce
 from TextDataset import TextDataset
 from pathlib import Path
+from torch import nn
 
 logger = logging.getLogger(__name__)
 
@@ -24,21 +26,19 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
-def generate(model,query_input_ids,pos_inputs,neg_inputs,attn_mask=None,pad_token_id=None):
-    # attn_mask = query_input_ids.ne(pad_token_id) if attn_mask is None else attn_mask
-    # output = model(input_ids=query_input_ids,attention_mask=attn_mask)
+
+def calculate_sim(model,query_input_ids,corpus_inputs,args):
     query_outputs=model(query_input_ids=query_input_ids)
-    pos_outputs=model(corpus_intput_ids=pos_inputs)
-    neg_outputs=model(corpus_intput_ids=neg_inputs)
-    return query_outputs,pos_outputs,neg_outputs
+    corpus_outpus=model(corpus_intput_ids=corpus_inputs)
+    scores = torch.matmul(corpus_outpus,query_outputs.transpose(-2,-1)).view(query_outputs.shape[0],-1)/ args.temperature # temperature
+    return scores
 
 def train(args):
     logger = logging.getLogger(__name__)
     device = "cuda:0"
-    query_bert = BertModel.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/").to(device)
-    corpus_bert = BertModel.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/").to(device)
-    bert_tokenizer = BertTokenizer.from_pretrained("/mnt/82_store/LLM-weights/bert-base-chinese/",max_length=512,truncation=True,padding=True,return_tensors="pt")
-    model = Model(query_encoder=query_bert,corpus_encoder=corpus_bert,pad_token_id = bert_tokenizer.pad_token_id)
+    bert = BertModel.from_pretrained(args.model_name_or_path).to(device)
+    bert_tokenizer = BertTokenizer.from_pretrained(args.model_name_or_path,max_length=512,truncation=True,padding=True,return_tensors="pt")
+    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id)
     dataset = TextDataset(bert_tokenizer,args,file_path=args.train_data_file)
     train_sampler = RandomSampler(dataset)
     model.zero_grad()
@@ -54,14 +54,12 @@ def train(args):
             query_inputs = batch["query_inputs"].to(args.device)[0]
             pos_inputs = batch["pos_inputs"].to(args.device)[0]
             neg_inputs = batch["neg_inputs"].to(args.device)[0]
-
-            # query_outputs = model(query_input_ids=query_inputs[0])
-            # pos_outputs = model(query_input_ids=pos_inputs[0])
-            # neg_outputs = model(query_input_ids=neg_inputs[0]) 
-            query_outputs,pos_outputs,neg_outputs = generate(model,query_inputs,pos_inputs,neg_inputs)
-            loss_fct = InfoNCE(negative_mode='unpaired')
-            loss = loss_fct(query_outputs,pos_outputs,neg_outputs)
-            
+            corpus_inputs = torch.cat((pos_inputs,neg_inputs),dim=0)
+            scores = calculate_sim(model,query_inputs,corpus_inputs,args)
+            # loss_fct = InfoNCE(negative_mode='unpaired')
+            # loss = loss_fct(query_outputs,pos_outputs,neg_outputs)
+            loss_fct = CrossEntropyLoss()
+            loss = loss_fct(scores,torch.zeros(scores.shape[0],device=scores.device, dtype=torch.long))
             #report loss
             tr_loss += loss.item()
             tr_num+=1
@@ -76,8 +74,9 @@ def train(args):
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step() 
-        save_path = Path(args.output_dir)/f'epoch-{idx}'
-        model.save(save_path,bert_tokenizer)
+    # save_path = Path(args.output_dir)/f'epoch-{idx}'
+    save_path = Path(args.output_dir)
+    model.save(save_path,bert_tokenizer)
         # bert_tokenizer.save_pretrained(save_path)
         # bert_tokenizer.save_vocabulary(save_path)
 
@@ -114,6 +113,8 @@ def main():
                         help="Total number of training epochs to perform.")
     parser.add_argument('--seed', type=int, default=42,
                         help="random seed for initialization")
+    parser.add_argument('--temperature', type=float, default=0.02,
+                        help="Set temperature for sim_score to scale up loss.")
     
     args = parser.parse_args()
     
