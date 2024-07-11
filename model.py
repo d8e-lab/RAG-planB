@@ -50,15 +50,22 @@ class Model(nn.Module):
             """lm_output (batch, seq, feature)"""
             lm_output = self.lm(input_ids=query_input_ids,attention_mask=attn_mask).last_hidden_state
             #TODO: mask padding
+            self.mask_pad_token_(lm_output,attn_mask,self.pad_token_id)
             encoding = self.query_lstm_layer(lm_output)
         if corpus_intput_ids is not None:
             attn_mask = corpus_intput_ids.ne(self.pad_token_id) if attn_mask is None else attn_mask
             """lm_output (batch, seq, feature)"""
             lm_output = self.lm(input_ids=corpus_intput_ids,attention_mask=attn_mask).last_hidden_state
+            self.mask_pad_token_(lm_output,attn_mask,self.pad_token_id)
             encoding = self.corpus_lstm_layer(lm_output)
 
         return encoding
     
+    def mask_pad_token_(self,lm_output,attn_mask,mask_value):
+        """To mask pad token in the output of bert"""
+        attn_mask = attn_mask.unsqueeze(-1).bool()
+        return lm_output.masked_fill_(mask=~attn_mask,value=mask_value)
+
     def save(self,save_path,tokenizer):
         query_bert_path=save_path/"bert"
         self.lm.save_pretrained(save_directory=query_bert_path)
