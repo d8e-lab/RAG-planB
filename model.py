@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch
 from transformers import BertModel
 class Model(nn.Module):   
-    def __init__(self, lm:Union[BertModel,str], pad_token_id, query_lstm:Optional[Union[nn.Module,str]]=None, corpus_lstm:Optional[Union[nn.Module,str]]=None, bidirectional=False, device="cuda:0",lm_freezed=True):
+    def __init__(self, lm:Union[BertModel,str], pad_token_id, query_lstm:Optional[Union[nn.Module,str]]=None, corpus_lstm:Optional[Union[nn.Module,str]]=None, corpus_batch_size = 6, bidirectional=False, device="cuda:0", lm_freezed=True):
         super(Model, self).__init__()
         if isinstance(lm,str):
             self.lm = BertModel.from_pretrained(lm).to(device)
@@ -20,22 +20,22 @@ class Model(nn.Module):
         batch_first - If True, then the input and output tensors are provided as (batch, seq, feature) instead of (seq, batch, feature). Note that this does not apply to hidden or cell states. See the Inputs/Outputs sections below for details. Default: False
         """
         if query_lstm is None:
-            self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device)
+            self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional,batch_size = 1, device = self.lm.device)
         else:
             if isinstance(query_lstm,nn.Module):
                 self.query_lstm_layer = query_lstm.to(self.lm.device)
             else:
-                self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device)
+                self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, batch_size = 1, device = self.lm.device)
                 self.query_lstm_layer.load_state_dict(torch.load(query_lstm))
         self.query_lstm_layer.to(self.lm.device)
 
         if corpus_lstm is None:
-            self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device)
+            self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, batch_size = corpus_batch_size, device = self.lm.device)
         else:
             if isinstance(corpus_lstm,nn.Module):
                 self.corpus_lstm_layer = corpus_lstm.to(self.lm.device)
             else:
-                self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device)
+                self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, batch_size = corpus_batch_size, device = self.lm.device)
                 self.corpus_lstm_layer.load_state_dict(torch.load(corpus_lstm))
         self.corpus_lstm_layer.to(self.lm.device)
 
@@ -103,32 +103,32 @@ class Model(nn.Module):
                         corpus_batch_size, self.num_hiddens), device=device))
                 
 class Encoder(nn.Module):
-    def __init__(self, num_inputs, num_hiddens, batch_first = True, bidirectional = False, device = "cuda:0", *args, **kwargs) -> None:
+    def __init__(self, num_inputs, num_hiddens, batch_first = True, bidirectional = False, batch_size = 1, device = "cuda:0", *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.num_hiddens = num_hiddens
         self.num_directions = 2 if bidirectional else 1
         self.device = device
         # TODO: mlp
         self.lstm_layter = nn.LSTM(num_inputs,self.num_hiddens,batch_first=batch_first)
-        self.state = self.begin_state(query_batch_size=1,corpus_batch_size=6,device=self.device)
+        self.state = self.begin_state(batch_size = batch_size, device=self.device)
 
     def forward(self,input):
         """last_state (h_n,c_n)
         h_n: tensor of shape (D * num_layers,H_out) for unbatched input or (D * num_layers, N, H_out) containing the final hidden state for each element in the sequence."""
-        _,last_state = self.query_lstm_layer(input,self.state)
+        _,last_state = self.lstm_layter(input,self.state)
         return last_state[0].transpose(0,1).squeeze(1)
 
-    def begin_state(self, device, query_batch_size=1,corpus_batch_size=5):
+    def begin_state(self, device, batch_size=1):
         if not isinstance(self.lstm_layter, nn.LSTM):
             # `nn.GRU` takes a tensor as hidden state
             return  torch.zeros((self.num_directions * self.lstm_layter.num_layers,
-                                query_batch_size, self.num_hiddens),
+                                batch_size, self.num_hiddens),
                                 device=device)
         else:
             # `nn.LSTM` takes a tuple of hidden states
             return (torch.zeros((
                         self.num_directions * self.lstm_layter.num_layers,
-                        query_batch_size, self.num_hiddens), device=device),
+                        batch_size, self.num_hiddens), device=device),
                     torch.zeros((
                         self.num_directions * self.lstm_layter.num_layers,
-                        query_batch_size, self.num_hiddens), device=device))
+                        batch_size, self.num_hiddens), device=device))
