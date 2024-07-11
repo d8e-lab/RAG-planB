@@ -64,7 +64,7 @@ class Model(nn.Module):
     def mask_pad_token_(self,lm_output,attn_mask,mask_value):
         """To mask pad token in the output of bert"""
         attn_mask = attn_mask.unsqueeze(-1).bool()
-        return lm_output.masked_fill_(mask=~attn_mask,value=mask_value)
+        return lm_output.masked_fill_(mask=attn_mask,value=mask_value)
 
     def save(self,save_path,tokenizer):
         query_bert_path=save_path/"bert"
