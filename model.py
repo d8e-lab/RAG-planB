@@ -110,18 +110,19 @@ class Model(nn.Module):
                         corpus_batch_size, self.num_hiddens), device=device))
                 
 class Encoder(nn.Module):
-    def __init__(self, num_inputs, num_hiddens, batch_first = True, bidirectional = False, batch_size = 1, device = "cuda:0", *args, **kwargs) -> None:
+    def __init__(self, num_inputs, num_hiddens, batch_first = True, bidirectional = False, device = "cuda:0", *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.num_hiddens = num_hiddens
         self.num_directions = 2 if bidirectional else 1
         self.device = device
-        # TODO: mlp
+        # TODO: mlp & relu etc.
         self.lstm_layter = nn.LSTM(num_inputs,self.num_hiddens,batch_first=batch_first)
-        self.state = self.begin_state(batch_size = batch_size, device=self.device)
 
     def forward(self,input):
         """last_state (h_n,c_n)
         h_n: tensor of shape (D * num_layers,H_out) for unbatched input or (D * num_layers, N, H_out) containing the final hidden state for each element in the sequence."""
+        batch_size = input.size(0)  # 从输入读取batch_size
+        self.state = self.begin_state(batch_size = batch_size, device=self.device)
         _,last_state = self.lstm_layter(input,self.state)
         return last_state[0].transpose(0,1).squeeze(1)
 
