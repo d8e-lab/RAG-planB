@@ -1,0 +1,8 @@
+{
+    "model_name": "mymodel",
+    "dimensions": 256,
+    "max_tokens": 512,
+    "language": ["en","zh"],
+    "model_id": "mymodel",
+    "model_uri": "/home/xmu/topk_acc/RAG_planB/test/"
+}
