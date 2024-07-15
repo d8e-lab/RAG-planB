@@ -38,7 +38,7 @@ def train(args):
     device = "cuda:0"
     bert = BertModel.from_pretrained(args.model_name_or_path).to(device)
     bert_tokenizer = BertTokenizer.from_pretrained(args.model_name_or_path,max_length=512,truncation=True,padding=True,return_tensors="pt")
-    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id)
+    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id, corpus_batch_size = args.corpus_batch_size, lm_freezed = args.freeze_lm)
     dataset = TextDataset(bert_tokenizer,args,file_path=args.train_data_file)
     train_sampler = RandomSampler(dataset)
     model.zero_grad()
@@ -95,8 +95,12 @@ def main():
                         help="The model checkpoint for weights initialization.")
     parser.add_argument("--tokenizer_name", default="", type=str,
                         help="Optional pretrained tokenizer name or path if not the same as model_name_or_path")
+    parser.add_argument("--corpus_batch_size", default=6, type=int,
+                        help="N negative samples + 1 positive sample")
     parser.add_argument("--do_train", action='store_true',
                         help="Whether to run training.")
+    parser.add_argument("--freeze_lm", action='store_true',
+                        help="Whether to freeze language model when training.")
     parser.add_argument("--do_eval", action='store_true',
                         help="Whether to run eval on the dev set.")
     parser.add_argument("--do_test", action='store_true',

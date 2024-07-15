@@ -6,5 +6,8 @@ CUDA_VISIBLE_DEVICES=$2 python myrun.py \
     --train_data_file /mnt/82_store/sbc/rag_data/random_sample_5/ \
     --num_train_epochs $epoch \
     --learning_rate 5e-6 \
-    --output_dir /mnt/82_store/sbc/planB/weights/bert-lstm/bert_freezed/${current_datetime} \
-    --do_train
+    --output_dir /mnt/82_store/sbc/planB/weights/bert-lstm/bert_nofreezed_mask_pad/${current_datetime} \
+    --do_train \
+    --freeze_lm \
+    --corpus_batch_size 6 \
+    --temperature 0.02
