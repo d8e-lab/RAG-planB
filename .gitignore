@@ -1,0 +1,7 @@
+*.safetensors
+sentence_transformers/
+test/
+test_corpus/
+test_query/
+
+

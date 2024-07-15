@@ -42,8 +42,6 @@ class Model(nn.Module):
         if lm_freezed:
             for para in self.lm.parameters():
                 para.requires_grad = False
-        else:
-            print("-------lm is not freezed!--------")
     
     def forward(self, input_ids=None, attn_mask=None): 
         
@@ -74,7 +72,7 @@ class Model(nn.Module):
         tokenizer.save_pretrained(query_bert_path)
         tokenizer.save_vocabulary(query_bert_path)
         torch.save(self.query_lstm_layer.state_dict(),save_path/'query_encoder.pt')
-        torch.save(self.corpus_lstm_layer.state_dict(),save_path/'corpus_encoders.pt')
+        torch.save(self.query_lstm_layer.state_dict(),save_path/'corpus_encoders.pt')
     
     def save_(self, output_dir: str,tokenizer):
         import os
@@ -143,3 +141,20 @@ class Encoder(nn.Module):
                         self.num_directions * self.lstm_layter.num_layers,
                         batch_size, self.num_hiddens), device=device))
 
+
+from transformers import PreTrainedModel,PreTrainedTokenizer
+from timm.models.resnet import BasicBlock, Bottleneck, ResNet
+from bert_lstm_model.configuration_mymodel import MyModelConfig
+
+from transformers import BertTokenizer
+class MyModel(PreTrainedModel):
+    config_class = MyModelConfig
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.bert_tokenizer = BertTokenizer.from_pretrained(config.bert_path,max_length=512,truncation=True,padding=True,return_tensors="pt")
+        self.model = Model(lm=config.bert_path,pad_token_id = self.bert_tokenizer.pad_token_id, query_lstm=config.lstm_path,corpus_lstm=config.lstm_path,embedding_type=config.embedding_type)
+
+    def forward(self, input_ids,**kwargs):
+        # token = torch.tensor(self.bert_tokenizer(input_ids).input_ids).to("cuda")
+        return self.model(input_ids)

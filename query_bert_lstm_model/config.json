@@ -1,0 +1,6 @@
+{
+  "bert_path": "/mnt/82_store/sbc/planB/weights/bert-lstm/bert_freezed_mask_pad/0711_14_11_54/epoch-0/bert/",
+  "lstm_path": "/mnt/82_store/sbc/planB/weights/bert-lstm/bert_freezed_mask_pad/0711_14_11_54/epoch-0/query_encoder.pt",
+  "embedding_type":"query",
+  "transformers_version": "4.42.3"
+}
