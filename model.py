@@ -63,6 +63,12 @@ class Model(nn.Module):
 
         return encoding
     
+    def set_query_mode(self):
+        self.embedding_type = "query"
+    
+    def set_corpus_mode(self):
+        self.embedding_type = "corpus"
+    
     def mask_pad_token_(self,lm_output,attn_mask,mask_value):
         """To mask pad token in the output of bert"""
         attn_mask = attn_mask.unsqueeze(-1).bool()
@@ -126,7 +132,10 @@ class Encoder(nn.Module):
         batch_size = input.size(0)  # 从输入读取batch_size
         self.state = self.begin_state(batch_size = batch_size, device=self.device)
         _,last_state = self.lstm_layter(input,self.state)
-        return (last_state[0].transpose(0,1).repeat(1,input.shape[1],1),last_state[1])
+        if self.training:
+            return last_state[0].transpose(0,1).squeeze(1)
+        else:
+            return (last_state[0].transpose(0,1).repeat(1,input.shape[1],1),last_state[1])
 
     def begin_state(self, device, batch_size=1):
         if not isinstance(self.lstm_layter, nn.LSTM):

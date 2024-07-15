@@ -27,9 +27,11 @@ def set_seed(seed=42):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
-def calculate_sim(model,query_input_ids,corpus_inputs,args):
-    query_outputs=model(query_input_ids=query_input_ids)
-    corpus_outpus=model(corpus_intput_ids=corpus_inputs)
+def calculate_sim(model:Model,query_input_ids,corpus_inputs,args):
+    model.set_query_mode()
+    query_outputs=model(input_ids=query_input_ids)
+    model.set_corpus_mode()
+    corpus_outpus=model(input_ids=corpus_inputs)
     scores = torch.matmul(corpus_outpus,query_outputs.transpose(-2,-1)).view(query_outputs.shape[0],-1)/ args.temperature # temperature
     return scores
 
