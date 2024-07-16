@@ -40,7 +40,7 @@ def train(args):
     device = "cuda:0"
     bert = BertModel.from_pretrained(args.model_name_or_path).to(device)
     bert_tokenizer = BertTokenizer.from_pretrained(args.model_name_or_path,max_length=512,truncation=True,padding=True,return_tensors="pt")
-    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id, corpus_batch_size = args.corpus_batch_size, lm_freezed = args.freeze_lm,lstm_num_layers=args.lstm_num_layers,normalized=args.normalized)
+    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id, corpus_batch_size = args.corpus_batch_size, lm_freezed = args.freeze_lm,lstm_num_layers=args.lstm_num_layers,normalized=args.normalized,bidirectional=args.bidirectional)
     dataset = TextDataset(bert_tokenizer,args,file_path=args.train_data_file)
     train_sampler = RandomSampler(dataset)
     model.zero_grad()
@@ -81,7 +81,9 @@ def train(args):
         model.save(save_path,bert_tokenizer)
         # bert_tokenizer.save_pretrained(save_path)
         # bert_tokenizer.save_vocabulary(save_path)
-
+    if args.num_train_epochs==0:
+        save_path = Path(args.output_dir)
+        model.save(save_path,bert_tokenizer)
     ## MRR eval()
 def main():
     parser = argparse.ArgumentParser()
@@ -124,6 +126,7 @@ def main():
     parser.add_argument('--lstm_num_layers', type=int, default=1,
                         help="lstm_num_layers")
     parser.add_argument("--normalized", action='store_true')
+    parser.add_argument("--bidirectional", action='store_true')
     
     args = parser.parse_args()
     

@@ -19,6 +19,7 @@ class Model(nn.Module):
         """
         batch_first - If True, then the input and output tensors are provided as (batch, seq, feature) instead of (seq, batch, feature). Note that this does not apply to hidden or cell states. See the Inputs/Outputs sections below for details. Default: False
         """
+        """load dual encoders."""
         if query_lstm is None:
             self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional,device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized)
         else:
@@ -81,41 +82,6 @@ class Model(nn.Module):
         tokenizer.save_vocabulary(query_bert_path)
         torch.save(self.query_lstm_layer.state_dict(),save_path/'query_encoder.pt')
         torch.save(self.corpus_lstm_layer.state_dict(),save_path/'corpus_encoders.pt')
-    
-    def save_(self, output_dir: str,tokenizer):
-        import os
-        os.makedirs(output_dir,exist_ok=True)
-        state_dict = self.state_dict()
-        state_dict = type(state_dict)(
-            {k: v.clone().cpu()
-             for k,v in state_dict.items()})
-        # self.model.save_pretrained(output_dir, state_dict=state_dict)
-        torch.save(state_dict,output_dir/"torch.pt")
-        tokenizer.save_pretrained(output_dir)
-        tokenizer.save_vocabulary(output_dir)
-
-    # 弃用
-    @DeprecationWarning
-    def begin_state(self, device, query_batch_size=1,corpus_batch_size=5):
-        if not isinstance(self.query_lstm_layer, nn.LSTM):
-            # `nn.GRU` takes a tensor as hidden state
-            return  torch.zeros((self.num_directions * self.query_lstm_layer.num_layers,
-                                query_batch_size, self.num_hiddens),
-                                device=device)
-        else:
-            # `nn.LSTM` takes a tuple of hidden states
-            return (torch.zeros((
-                        self.num_directions * self.query_lstm_layer.num_layers,
-                        query_batch_size, self.num_hiddens), device=device),
-                    torch.zeros((
-                        self.num_directions * self.query_lstm_layer.num_layers,
-                        query_batch_size, self.num_hiddens), device=device)),(
-                    torch.zeros((
-                        self.num_directions * self.corpus_lstm_layer.num_layers,
-                        corpus_batch_size, self.num_hiddens), device=device),
-                    torch.zeros((
-                        self.num_directions * self.corpus_lstm_layer.num_layers,
-                        corpus_batch_size, self.num_hiddens), device=device))
                 
 class Encoder(nn.Module):
     def __init__(self, num_inputs, num_hiddens, batch_first = True, bidirectional = False, device = "cuda:0",num_layers=1, normalized = False, *args, **kwargs) -> None:
@@ -125,10 +91,15 @@ class Encoder(nn.Module):
         self.num_directions = 2 if bidirectional else 1
         self.device = device
         # TODO: mlp & relu etc.
-
+        self.w01 = nn.Linear(768,2048)
+        self.w02 = nn.Linear(2048,1024)
+        self.w03 = nn.Linear(1024,768)
         self.lstm_layter = nn.LSTM(num_inputs,self.num_hiddens,batch_first=batch_first,num_layers=num_layers)
-        self.w1 = nn.Linear(256,512)
-        self.w2 = nn.Linear(512,256)
+        # self.w1 = nn.Linear(256,512)
+        # self.w2 = nn.Linear(512,256)
+        self.w1 = nn.Linear(256,1024)
+        self.w2 = nn.Linear(1024,512)
+        self.w3 = nn.Linear(512,256)
         self.relu = nn.ReLU()
 
         self.apply(self._init_weights)
@@ -148,10 +119,11 @@ class Encoder(nn.Module):
         """last_state (h_n,c_n)
         h_n: tensor of shape (D * num_layers,H_out) for unbatched input or (D * num_layers, N, H_out) containing the final hidden state for each element in the sequence."""
         batch_size = input.size(0)  # 从输入读取batch_size
+        input = self.w03(self.relu(self.w02(self.relu(self.w01(input)))))
         self.state = self.begin_state(batch_size = batch_size, device=self.device)
         _,last_state = self.lstm_layter(input,self.state)
         vec = last_state[0].transpose(0,1).squeeze(1)
-        output = self.w2(self.relu(self.w1(vec)))
+        output = self.w3(self.relu(self.w2(self.relu(self.w1(vec)))))
         if self.normlized:
             output = torch.nn.functional.normalize(output,dim=-1)
         if self.training:
