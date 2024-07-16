@@ -7,13 +7,18 @@ import torch
 
 
 class TextDataset(Dataset):
-    def __init__(self, tokenizer, args, file_path="/mnt/82_store/sbc/rag_data/",pool=None):
+    def __init__(self, tokenizer, args, file_path="/mnt/82_store/sbc/rag_data/",is_test: bool = False):
         super().__init__()
         self.args=args
         self.examples = []
         import os
         from pathlib import Path
-        file_list = [Path(file_path)/file for file in os.listdir(file_path) if "train" in file]
+        if not is_test:
+            file_list = [Path(file_path)/file for file in os.listdir(file_path) if "train" in file]
+        else:
+            print('set test mode.')
+            file_list = [Path(file_path)/file for file in os.listdir(file_path) if "train" not in file]
+        print(f"dataset files:f{file_list}")
         for file in file_list:
             with jsonlines.open(file,'r') as lines:
                 for line in lines:
