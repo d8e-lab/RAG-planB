@@ -38,18 +38,19 @@ def calculate_sim(model:Model,query_input_ids,corpus_inputs,args):
 def train(args):
     logger = logging.getLogger(__name__)
     device = "cuda:0"
-    bert = BertModel.from_pretrained(args.model_name_or_path).to(device)
-    bert_tokenizer = BertTokenizer.from_pretrained(args.model_name_or_path,max_length=512,truncation=True,padding=True,return_tensors="pt")
-    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id, corpus_batch_size = args.corpus_batch_size, lm_freezed = args.freeze_lm,lstm_num_layers=args.lstm_num_layers,normalized=args.normalized)
-    dataset = TextDataset(bert_tokenizer,args,file_path=args.train_data_file)
+    bert_tokenizer = BertTokenizer.from_pretrained(f"{args.model_name_or_path}/bert",max_length=512,truncation=True,padding=True,return_tensors="pt")
+    # bert = BertModel.from_pretrained(args.model_name_or_path).to(device)
+    # model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id, corpus_batch_size = args.corpus_batch_size, lm_freezed = args.freeze_lm)
+    print(f"{args.model_name_or_path}/query_encoder.pt")
+    model = Model(lm=f"{args.model_name_or_path}/bert",pad_token_id = bert_tokenizer.pad_token_id, query_lstm=f"{args.model_name_or_path}/query_encoder.pt",corpus_lstm=f"{args.model_name_or_path}/corpus_encoders.pt",corpus_batch_size = args.corpus_batch_size,lstm_num_layers=args.lstm_num_layers,normalized=args.normalized)
+    dataset = TextDataset(bert_tokenizer,args,file_path=args.train_data_file,is_test=args.do_test)
     train_sampler = RandomSampler(dataset)
     model.zero_grad()
 
     train_dataloader = DataLoader(dataset,sampler=train_sampler,batch_size=args.train_batch_size,num_workers=4)
     model.train()
-    tr_num,tr_loss,best_mrr=0,0,0 
-    optimizer = AdamW(model.parameters(), lr=args.learning_rate, eps=1e-8)
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0,num_training_steps=len(train_dataloader)*args.num_train_epochs)
+    tr_loss,tr_num=0,0
+    count=0
     for idx in range(args.num_train_epochs): 
         for step,batch in enumerate(train_dataloader):
             #get inputs
@@ -58,27 +59,32 @@ def train(args):
             neg_inputs = batch["neg_inputs"].to(args.device)[0]
             corpus_inputs = torch.cat((pos_inputs,neg_inputs),dim=0)
             scores = calculate_sim(model,query_inputs,corpus_inputs,args)
+            # print(torch.argmax(scores))
+            if torch.argmax(scores).item() == 0:
+                print(0)
+                count+=1
             # loss_fct = InfoNCE(negative_mode='unpaired')
             # loss = loss_fct(query_outputs,pos_outputs,neg_outputs)
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(scores,torch.zeros(scores.shape[0],device=scores.device, dtype=torch.long))
+
             #report loss
+            
             tr_loss += loss.item()
             tr_num+=1
             if (step+1)% 100==0:
                 logger.info("epoch {} step {} loss {}".format(idx,step+1,round(tr_loss/tr_num,5)))
                 tr_loss=0
                 tr_num=0
-            
+            # print(scores,loss.item(),sep='\t\t')
+        print(count/step)
+        logger.info("epoch {} step {} loss {}".format(idx,step+1,round(tr_loss/tr_num,5)))
+                
             #backward
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-            optimizer.step()
-            optimizer.zero_grad()
-            scheduler.step() 
-        save_path = Path(args.output_dir)/f'epoch-{idx}'
+            # loss.backward()
+        # save_path = Path(args.output_dir)/f'epoch-{idx}'
         # save_path = Path(args.output_dir)
-        model.save(save_path,bert_tokenizer)
+        # model.save(save_path,bert_tokenizer)
         # bert_tokenizer.save_pretrained(save_path)
         # bert_tokenizer.save_vocabulary(save_path)
 
@@ -121,10 +127,8 @@ def main():
                         help="random seed for initialization")
     parser.add_argument('--temperature', type=float, default=0.02,
                         help="Set temperature for sim_score to scale up loss.")
-    parser.add_argument('--lstm_num_layers', type=int, default=1,
-                        help="lstm_num_layers")
     parser.add_argument("--normalized", action='store_true')
-    
+    parser.add_argument('--lstm_num_layers', type=int, default=1)
     args = parser.parse_args()
     
     #set log
