@@ -1,5 +1,5 @@
 current_datetime=$(date +"%m%d_%H_%M_%S")
-model_path=/mnt/82_store/sbc/planB/weights/bert-lstm/bert_freezed_3lstm_mlp_relu_normalized/0716_05_36_30/epoch-7
+model_path=/mnt/82_store/sbc/planB/weights/bert-lstm/bert_nofreezed_mlp_3lstm_mlp_relu_normalized/0716_14_09_53/epoch-14
 epoch=$1
 lstm_num_layers=$3
 # /mnt/82_store/sbc/rag_data/random_sample_5/

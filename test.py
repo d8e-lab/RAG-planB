@@ -1,16 +1,9 @@
-from bert_lstm_model.configuration_mymodel import MyModelConfig
-from bert_lstm_model.modeling_mymodel import MyModel
+import torch 
+from torch import nn
+score = torch.tensor([[100,0,0,0,0,0]],dtype=torch.float32)
+# target = torch.zeros(score.shape[0],device=score.device, dtype=torch.long)
+target = torch.zeros((1,),dtype=torch.long)
+print(target)
+loss_fcn = nn.CrossEntropyLoss()
 
-MyModelConfig.register_for_auto_class()
-MyModel.register_for_auto_class()
-
-query_model_config = MyModelConfig.from_json_file("corpus_bert_lstm_model/config.json")
-query_model = MyModel(query_model_config)
-
-query_model.save_pretrained("test_corpus")
-
-
-query_model_config = MyModelConfig.from_json_file("query_bert_lstm_model/config.json")
-query_model = MyModel(query_model_config)
-
-query_model.save_pretrained("test_query")
+print(loss_fcn(score,target))
