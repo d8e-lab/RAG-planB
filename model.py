@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch
 from transformers import BertModel
 class Model(nn.Module):   
-    def __init__(self, lm:Union[BertModel,str], pad_token_id, query_lstm:Optional[Union[nn.Module,str]]=None, corpus_lstm:Optional[Union[nn.Module,str]]=None, corpus_batch_size = 6, bidirectional=False, device="cuda:0", lm_freezed=True,embedding_type="query",lstm_num_layers:int = 1, normalized:bool = False):
+    def __init__(self, lm:Union[BertModel,str], pad_token_id, query_lstm:Optional[Union[nn.Module,str]]=None, corpus_lstm:Optional[Union[nn.Module,str]]=None, corpus_batch_size = 6, bidirectional=False, device="cuda:0", lm_freezed=True,embedding_type="query",lstm_num_layers:int = 1, normalized:bool = False, method:str = 'cls'):
         super(Model, self).__init__()
         if isinstance(lm,str):
             self.lm = BertModel.from_pretrained(lm).to(device)
@@ -84,8 +84,9 @@ class Model(nn.Module):
         torch.save(self.corpus_lstm_layer.state_dict(),save_path/'corpus_encoders.pt')
                 
 class Encoder(nn.Module):
-    def __init__(self, num_inputs, num_hiddens, batch_first = True, bidirectional = False, device = "cuda:0",num_layers=1, normalized = False, *args, **kwargs) -> None:
+    def __init__(self, num_inputs, num_hiddens, batch_first = True, bidirectional = False, device = "cuda:0",num_layers=1, normalized = False, method = 'cls', *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.method=method
         self.normlized = normalized
         self.num_hiddens = num_hiddens
         self.num_directions = 2 if bidirectional else 1
@@ -119,10 +120,16 @@ class Encoder(nn.Module):
         """last_state (h_n,c_n)
         h_n: tensor of shape (D * num_layers,H_out) for unbatched input or (D * num_layers, N, H_out) containing the final hidden state for each element in the sequence."""
         batch_size = input.size(0)  # 从输入读取batch_size
+        #mlp，偷懒XD
         input = self.w03(self.relu(self.w02(self.relu(self.w01(input)))))
         self.state = self.begin_state(batch_size = batch_size, device=self.device)
-        _,last_state = self.lstm_layter(input,self.state)
-        vec = last_state[0].transpose(0,1).squeeze(1)
+        # lstm_output (N,L,D*H_out)
+        lstm_output,last_state = self.lstm_layter(input,self.state)
+        if self.method=="mean":
+            vec = torch.mean(lstm_output,dim=1,keepdim=True).view(input.shape[0],-1)
+        elif self.method=="cls":
+            vec = last_state[0].transpose(0,1).squeeze(1)    
+        
         output = self.w3(self.relu(self.w2(self.relu(self.w1(vec)))))
         if self.normlized:
             output = torch.nn.functional.normalize(output,dim=-1)

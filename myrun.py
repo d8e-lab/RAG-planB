@@ -35,12 +35,19 @@ def calculate_sim(model:Model,query_input_ids,corpus_inputs,args):
     scores = torch.matmul(corpus_outpus,query_outputs.transpose(-2,-1)).view(query_outputs.shape[0],-1)/ args.temperature # temperature
     return scores
 
+def copy_model_file(args):
+    import shutil
+    save_path = Path(args.output_dir)
+    save_path.mkdir(parents=True, exist_ok=True)
+    shutil.copy('model.py', save_path / 'model.py')
+
 def train(args):
     logger = logging.getLogger(__name__)
     device = "cuda:0"
+    copy_model_file(args)
     bert = BertModel.from_pretrained(args.model_name_or_path).to(device)
     bert_tokenizer = BertTokenizer.from_pretrained(args.model_name_or_path,max_length=512,truncation=True,padding=True,return_tensors="pt")
-    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id, corpus_batch_size = args.corpus_batch_size, lm_freezed = args.freeze_lm,lstm_num_layers=args.lstm_num_layers,normalized=args.normalized,bidirectional=args.bidirectional)
+    model = Model(lm=bert, pad_token_id = bert_tokenizer.pad_token_id, corpus_batch_size = args.corpus_batch_size, lm_freezed = args.freeze_lm,lstm_num_layers=args.lstm_num_layers,normalized=args.normalized,bidirectional=args.bidirectional,method=args.method)
     dataset = TextDataset(bert_tokenizer,args,file_path=args.train_data_file)
     train_sampler = RandomSampler(dataset)
     model.zero_grad()
@@ -127,7 +134,7 @@ def main():
                         help="lstm_num_layers")
     parser.add_argument("--normalized", action='store_true')
     parser.add_argument("--bidirectional", action='store_true')
-    
+    parser.add_argument("--method", default="cls", type=str)
     args = parser.parse_args()
     
     #set log
