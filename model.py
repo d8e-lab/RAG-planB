@@ -128,7 +128,7 @@ class Encoder(nn.Module):
         if self.method=="mean":
             vec = torch.mean(lstm_output,dim=1,keepdim=True).view(input.shape[0],-1)
         elif self.method=="cls":
-            vec = last_state[0][-1,:,:].transpose(0,1).squeeze(1)
+            vec = last_state[0][-1:,:,:].transpose(0,1).squeeze(1)
         
         output = self.w3(self.relu(self.w2(self.relu(self.w1(vec)))))
         if self.normlized:
