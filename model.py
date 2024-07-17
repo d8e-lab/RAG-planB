@@ -21,22 +21,22 @@ class Model(nn.Module):
         """
         """load dual encoders."""
         if query_lstm is None:
-            self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional,device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized)
+            self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional,device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized,method=method)
         else:
             if isinstance(query_lstm,nn.Module):
                 self.query_lstm_layer = query_lstm.to(self.lm.device)
             else:
-                self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional,  device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized)
+                self.query_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional,  device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized,method=method)
                 self.query_lstm_layer.load_state_dict(torch.load(query_lstm))
         self.query_lstm_layer.to(self.lm.device)
 
         if corpus_lstm is None:
-            self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized)
+            self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized,method=method)
         else:
             if isinstance(corpus_lstm,nn.Module):
                 self.corpus_lstm_layer = corpus_lstm.to(self.lm.device)
             else:
-                self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized)
+                self.corpus_lstm_layer = Encoder(num_inputs, self.num_hiddens, batch_first=True, bidirectional = bidirectional, device = self.lm.device,num_layers=lstm_num_layers,normalized=normalized,method=method)
                 self.corpus_lstm_layer.load_state_dict(torch.load(corpus_lstm))
         self.corpus_lstm_layer.to(self.lm.device)
 
@@ -128,7 +128,7 @@ class Encoder(nn.Module):
         if self.method=="mean":
             vec = torch.mean(lstm_output,dim=1,keepdim=True).view(input.shape[0],-1)
         elif self.method=="cls":
-            vec = last_state[0].transpose(0,1).squeeze(1)    
+            vec = last_state[0][-1,:,:].transpose(0,1).squeeze(1)
         
         output = self.w3(self.relu(self.w2(self.relu(self.w1(vec)))))
         if self.normlized:
